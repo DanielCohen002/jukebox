@@ -72,7 +72,7 @@ class MainActivity : Activity() {
             setOnClickListener { toggleAlways() }
         }
         wakeField = android.widget.EditText(this).apply {
-            setText(prefs.getString("wake", "hey music")); setTextColor(cream); setHintTextColor(0x88FFFFFF.toInt())
+            setText(prefs.getString("wake", "hey jukebox")); setTextColor(cream); setHintTextColor(0x88FFFFFF.toInt())
             hint = "wake phrase"; gravity = Gravity.CENTER; setSingleLine(); textSize = 14f
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun afterTextChanged(e: android.text.Editable?) { prefs.edit().putString("wake", e.toString().lowercase().trim()).apply() }

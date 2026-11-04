@@ -37,7 +37,7 @@ class WakeService : Service() {
         private const val NOTIF_ID = 1
         @Volatile var running = false
 
-        fun wakePhrase(ctx: Context) = ctx.getSharedPreferences("voiceplay", MODE_PRIVATE).getString("wake", "hey music")!!.lowercase().trim()
+        fun wakePhrase(ctx: Context) = ctx.getSharedPreferences("voiceplay", MODE_PRIVATE).getString("wake", "hey jukebox")!!.lowercase().trim()
         fun defaultTarget(ctx: Context) =
             Target.valueOf(ctx.getSharedPreferences("voiceplay", MODE_PRIVATE).getString("default", Target.METROLIST.name)!!)
     }

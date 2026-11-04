@@ -5,7 +5,7 @@
 Android app that lets voice commands start music in Metrolist and AIMP, since Gemini won't.
 
 - Say "Hey Google, open Jukebox", then e.g. "play Radiohead on Metrolist", "play jazz on AIMP", "pause", "next".
-- Optional always-on mode: an offline Vosk wake phrase (default "hey music") listens in a foreground service, then Google SpeechRecognizer takes the command.
+- Optional always-on mode: an offline Vosk wake phrase (default "hey jukebox") listens in a foreground service, then Google SpeechRecognizer takes the command.
 - Metrolist is driven through its media3 MediaBrowser/MediaController; AIMP through its MediaBrowserService, with a play-from-search intent fallback.
 
 ## Build
