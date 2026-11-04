@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
@@ -36,29 +37,43 @@ class MainActivity : Activity() {
         get() = Target.valueOf(prefs.getString("default", Target.METROLIST.name)!!)
         set(v) { prefs.edit().putString("default", v.name).apply(); renderDefault() }
 
+    private fun pill(fill: Int, stroke: Int) = GradientDrawable().apply { setColor(fill); setStroke((2 * dp).toInt(), stroke); cornerRadius = 100 * dp }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val circle = TextView(this).apply {
-            text = "🎤"; textSize = 44f; gravity = Gravity.CENTER
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF2E5E4E.toInt()) }
-            setOnClickListener { retries = 1; startListening() }
+        val amber = 0xFFF4B63F.toInt(); val cream = 0xFFF2E3C6.toInt()
+        val box = JukeboxView(this).apply { setOnClickListener { retries = 1; startListening() } }
+        status = TextView(this).apply {
+            textSize = 20f; setTextColor(amber); gravity = Gravity.CENTER; typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            isAllCaps = true; letterSpacing = 0.08f; setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(e: android.text.Editable?) { box.active = e.toString().let { it.startsWith("Listening") || it.startsWith("Thinking") } }
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            })
         }
-        status = TextView(this).apply { textSize = 22f; setTextColor(Color.WHITE); gravity = Gravity.CENTER }
-        heard = TextView(this).apply { textSize = 16f; setTextColor(0xAAFFFFFF.toInt()); gravity = Gravity.CENTER }
+        heard = TextView(this).apply { textSize = 14f; setTextColor(cream); gravity = Gravity.CENTER; typeface = Typeface.MONOSPACE; maxLines = 2 }
+        val display = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((16 * dp).toInt(), (12 * dp).toInt(), (16 * dp).toInt(), (12 * dp).toInt())
+            background = GradientDrawable().apply { setColor(0xFF1A0F0A.toInt()); setStroke((2 * dp).toInt(), amber); cornerRadius = 14 * dp }
+            addView(status, LinearLayout.LayoutParams(-1, -2))
+            addView(heard, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (4 * dp).toInt() })
+        }
         defaultBtn = TextView(this).apply {
-            textSize = 14f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+            textSize = 14f; setTextColor(cream); gravity = Gravity.CENTER
             setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
-            background = GradientDrawable().apply { setColor(0x33FFFFFF); cornerRadius = 100 * dp }
+            background = pill(0x33F2E3C6, cream)
             setOnClickListener { defaultTarget = if (defaultTarget == Target.METROLIST) Target.AIMP else Target.METROLIST }
         }
         alwaysBtn = TextView(this).apply {
-            textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
-            setPadding((20 * dp).toInt(), (14 * dp).toInt(), (20 * dp).toInt(), (14 * dp).toInt())
+            textSize = 14f; gravity = Gravity.CENTER
+            setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
             setOnClickListener { toggleAlways() }
         }
         wakeField = android.widget.EditText(this).apply {
-            setText(prefs.getString("wake", "hey music")); setTextColor(Color.WHITE); setHintTextColor(0x88FFFFFF.toInt())
-            hint = "wake phrase"; gravity = Gravity.CENTER; setSingleLine(); textSize = 16f
+            setText(prefs.getString("wake", "hey music")); setTextColor(cream); setHintTextColor(0x88FFFFFF.toInt())
+            hint = "wake phrase"; gravity = Gravity.CENTER; setSingleLine(); textSize = 14f
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun afterTextChanged(e: android.text.Editable?) { prefs.edit().putString("wake", e.toString().lowercase().trim()).apply() }
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -66,18 +81,21 @@ class MainActivity : Activity() {
             })
         }
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-            setPadding((24 * dp).toInt(), 0, (24 * dp).toInt(), 0)
-            addView(circle, LinearLayout.LayoutParams((120 * dp).toInt(), (120 * dp).toInt()))
-            addView(status, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (28 * dp).toInt() })
-            addView(heard, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
-            addView(defaultBtn, LinearLayout.LayoutParams(-2, -2).apply { topMargin = (40 * dp).toInt() })
-            addView(alwaysBtn, LinearLayout.LayoutParams(-2, -2).apply { topMargin = (24 * dp).toInt() })
-            addView(TextView(context).apply { text = "Wake phrase (restart listening after changing)"; textSize = 12f; setTextColor(0x88FFFFFF.toInt()); gravity = Gravity.CENTER },
-                LinearLayout.LayoutParams(-1, -2).apply { topMargin = (16 * dp).toInt() })
-            addView(wakeField, LinearLayout.LayoutParams((240 * dp).toInt(), -2))
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF1B2F4F.toInt(), 0xFF0A1424.toInt()))
+            addView(box, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(display, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
+            addView(LinearLayout(context).apply {
+                gravity = Gravity.CENTER
+                addView(defaultBtn, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (8 * dp).toInt() })
+                addView(alwaysBtn)
+            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = (14 * dp).toInt() })
+            addView(TextView(context).apply { text = "Wake phrase (restart listening after changing)"; textSize = 11f; setTextColor(0x88F2E3C6.toInt()); gravity = Gravity.CENTER },
+                LinearLayout.LayoutParams(-1, -2).apply { topMargin = (10 * dp).toInt() })
+            addView(wakeField, LinearLayout.LayoutParams((220 * dp).toInt(), -2))
             setOnApplyWindowInsetsListener { v, ins ->
-                val b = ins.getInsets(WindowInsets.Type.systemBars()); v.setPadding(b.left, b.top, b.right, b.bottom); ins
+                val b = ins.getInsets(WindowInsets.Type.systemBars())
+                v.setPadding(b.left + (20 * dp).toInt(), b.top + (8 * dp).toInt(), b.right + (20 * dp).toInt(), b.bottom + (12 * dp).toInt()); ins
             }
         }
         setContentView(root)
@@ -121,8 +139,9 @@ class MainActivity : Activity() {
 
     private fun renderAlways() {
         val on = WakeService.running
-        alwaysBtn.text = if (on) "Always listening: ON  (tap to stop)" else "Always listening: OFF  (tap to start)"
-        alwaysBtn.background = GradientDrawable().apply { setColor(if (on) 0xFF2E5E4E.toInt() else 0x33FFFFFF); cornerRadius = 100 * dp }
+        alwaysBtn.text = if (on) "Always listening: ON" else "Always listening: OFF"
+        alwaysBtn.setTextColor(if (on) 0xFF0D1626.toInt() else 0xFFF2E3C6.toInt())
+        alwaysBtn.background = pill(if (on) 0xFF3DB8A8.toInt() else 0x33F2E3C6, if (on) 0xFF3DB8A8.toInt() else 0xFFF2E3C6.toInt())
     }
 
     private fun toggleAlways() {
@@ -138,7 +157,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun renderDefault() { defaultBtn.text = "Default player: ${defaultTarget.label}  (tap to change)" }
+    private fun renderDefault() { defaultBtn.text = "Player: ${defaultTarget.label}" }
 
     private fun startListening() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
