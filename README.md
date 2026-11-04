@@ -1,4 +1,6 @@
-# Jukebox
+<p align="center"><img src="docs/icon.png" alt="Jukebox icon" width="128"></p>
+
+<h1 align="center">Jukebox</h1>
 
 Android app that lets voice commands start music in Metrolist and AIMP, since Gemini won't.
 
