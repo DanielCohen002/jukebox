@@ -93,6 +93,12 @@ class MainActivity : Activity() {
             addView(TextView(context).apply { text = "Wake phrase (restart listening after changing)"; textSize = 11f; setTextColor(0x88F2E3C6.toInt()); gravity = Gravity.CENTER },
                 LinearLayout.LayoutParams(-1, -2).apply { topMargin = (10 * dp).toInt() })
             addView(wakeField, LinearLayout.LayoutParams((220 * dp).toInt(), -2))
+            addView(TextView(context).apply {
+                text = "Jukebox ${Updater.currentVersion(this@MainActivity)} · Check for updates"
+                textSize = 12f; setTextColor(cream); gravity = Gravity.CENTER
+                setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
+                setOnClickListener { Updater.check(this@MainActivity) }
+            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = (6 * dp).toInt() })
             setOnApplyWindowInsetsListener { v, ins ->
                 val b = ins.getInsets(WindowInsets.Type.systemBars())
                 v.setPadding(b.left + (20 * dp).toInt(), b.top + (8 * dp).toInt(), b.right + (20 * dp).toInt(), b.bottom + (12 * dp).toInt()); ins

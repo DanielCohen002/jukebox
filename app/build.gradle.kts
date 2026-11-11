@@ -21,8 +21,8 @@ android {
         applicationId = "com.djcohen.voiceplay"
         minSdk = 30
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.1.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -53,6 +53,7 @@ kotlin { jvmToolchain(17) }
 
 dependencies {
     // Talks to Metrolist's media service (it understands voice-search requests).
+    implementation("androidx.core:core:1.15.0")
     implementation("androidx.media3:media3-session:1.8.0")
 }
 

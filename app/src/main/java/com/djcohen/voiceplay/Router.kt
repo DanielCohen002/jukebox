@@ -35,7 +35,7 @@ object Router {
                 val target = cmd.target ?: defaultTarget
                 info("Playing “${cmd.query}” on ${target.label}…")
                 when (target) {
-                    Target.AIMP -> playInAimp(ctx.applicationContext, cmd.query, done)
+                    Target.AIMP -> playInAimp(ctx.applicationContext, cmd.query, info, done)
                     Target.METROLIST -> playInMetrolist(ctx.applicationContext, cmd.query, info, done)
                 }
             }
@@ -52,7 +52,11 @@ object Router {
      * AIMP: connect to its media service and send "play from search" (works in the background and on the lock screen).
      * If that doesn't start playback, fall back to the standard intent, which needs the screen unlocked.
      */
-    private fun playInAimp(app: Context, query: String, done: () -> Unit) {
+    private fun playInAimp(app: Context, query: String, info: (String) -> Unit, done: () -> Unit) {
+        AimpLibrary.play(app, query, info) { handled -> if (handled) done() else playInAimpBySearch(app, query, done) }
+    }
+
+    private fun playInAimpBySearch(app: Context, query: String, done: () -> Unit) {
         var browser: android.media.browse.MediaBrowser? = null
         fun fallback() {
             runCatching {
