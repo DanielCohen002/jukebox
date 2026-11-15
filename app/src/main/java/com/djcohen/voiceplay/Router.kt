@@ -20,7 +20,7 @@ import androidx.media3.session.SessionToken
 object Router {
     private const val TAG = "VoicePlay"
     private const val METROLIST_PKG = "com.metrolist.music"
-    private const val METROLIST_SERVICE = "com.metrolist.music.playback.MusicService"
+    private const val METROLIST_SERVICE = "com.metrolist.music.playback.MusicService"   // old name; looked up at runtime now
     private const val AIMP_PKG = "com.aimp.player"
     private const val AIMP_SERVICE = "com.aimp.player.service.AppService"
     private const val AIMP_ACTIVITY = "com.aimp.player.ui.activities.main.MainActivity"
@@ -53,10 +53,10 @@ object Router {
      * If that doesn't start playback, fall back to the standard intent, which needs the screen unlocked.
      */
     private fun playInAimp(app: Context, query: String, info: (String) -> Unit, done: () -> Unit) {
-        AimpLibrary.play(app, query, info) { handled -> if (handled) done() else playInAimpBySearch(app, query, done) }
+        AimpLibrary.play(app, query, info) { handled -> if (handled) done() else playInAimpBySearch(app, query.replace(Regex("[ ]+by[ ]+"), " "), info, done) }
     }
 
-    private fun playInAimpBySearch(app: Context, query: String, done: () -> Unit) {
+    private fun playInAimpBySearch(app: Context, query: String, info: (String) -> Unit, done: () -> Unit) {
         var browser: android.media.browse.MediaBrowser? = null
         fun fallback() {
             runCatching {
@@ -66,7 +66,16 @@ object Router {
                     .putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/audio")
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }.onFailure { Log.w(TAG, "AIMP intent fallback failed", it) }
-            browser?.disconnect(); done()
+            // AIMP's own search either starts something or does nothing; check, and say so if it found nothing.
+            main.postDelayed({
+                val playing = runCatching {
+                    android.media.session.MediaController(app, browser!!.sessionToken).playbackState?.state ==
+                        android.media.session.PlaybackState.STATE_PLAYING
+                }.getOrDefault(false)
+                if (playing) AimpLibrary.watch(app, browser)
+                else { browser?.disconnect(); info("Couldn’t find “$query” in AIMP") }
+                done()
+            }, 3000)
         }
         browser = android.media.browse.MediaBrowser(app, ComponentName(AIMP_PKG, AIMP_SERVICE),
             object : android.media.browse.MediaBrowser.ConnectionCallback() {
@@ -76,7 +85,18 @@ object Router {
                     main.postDelayed({
                         val playing = c.playbackState?.state == android.media.session.PlaybackState.STATE_PLAYING
                         Log.i(TAG, "AIMP via session: playing=$playing")
-                        if (playing) { browser?.disconnect(); done() } else fallback()
+                        // AIMP plays *something* for any search (even nonsense), so check the track actually fits the request.
+                        val md = c.metadata
+                        val got = listOfNotNull(md?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE),
+                            md?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST),
+                            md?.getString(android.media.MediaMetadata.METADATA_KEY_ALBUM)).joinToString(" ").lowercase()
+                        val words = query.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 3 && it != "the" }
+                        val fits = words.isEmpty() || words.any { got.contains(it) }
+                        if (playing && fits) { AimpLibrary.watch(app, browser); done() }
+                        else if (playing) {
+                            c.transportControls.pause(); browser?.disconnect()
+                            info("Couldn’t find “$query” in AIMP"); done()
+                        } else fallback()
                     }, 2500)
                 }
                 override fun onConnectionFailed() { Log.w(TAG, "AIMP session connect failed"); fallback() }
@@ -89,7 +109,13 @@ object Router {
      * (title and artist), and play it. If the search comes back empty, fall back to Metrolist's own voice matching.
      */
     private fun playInMetrolist(app: Context, query: String, info: (String) -> Unit, done: () -> Unit) {
-        val token = SessionToken(app, ComponentName(METROLIST_PKG, METROLIST_SERVICE))
+        // Metrolist has renamed its service between versions, so ask the system which one it has now.
+        val component = app.packageManager.queryIntentServices(
+            Intent("androidx.media3.session.MediaLibraryService").setPackage(METROLIST_PKG), 0
+        ).firstOrNull()?.serviceInfo?.let { ComponentName(it.packageName, it.name) }
+        if (component == null) { info("Couldn’t find Metrolist (is it installed?)"); done(); return }
+        val token = runCatching { SessionToken(app, component) }.onFailure { Log.e(TAG, "Metrolist token", it) }.getOrNull()
+        if (token == null) { info("Couldn’t reach Metrolist"); done(); return }
         val future = MediaBrowser.Builder(app, token).buildAsync()
         fun finish(b: MediaBrowser) { main.postDelayed({ b.release(); done() }, 3000) }
         future.addListener({
@@ -99,7 +125,9 @@ object Router {
             search.addListener({
                 val result = browser.getSearchResult(query, 0, 40, null)
                 result.addListener({
-                    val items = runCatching { result.get().value?.toList() }.getOrNull().orEmpty()
+                    val lr = runCatching { result.get() }.onFailure { Log.e(TAG, "search result failed", it) }.getOrNull()
+                    Log.i(TAG, "search code=${lr?.resultCode} (0=ok)")
+                    val items = lr?.value?.toList().orEmpty()
                     val ranked = Matcher.rank(query, items)
                     val best = ranked.firstOrNull()
                     Log.i(TAG, "query=\"$query\" results=${items.size} top=" +

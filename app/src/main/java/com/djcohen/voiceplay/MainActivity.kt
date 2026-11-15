@@ -41,6 +41,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
         val amber = 0xFFF4B63F.toInt(); val cream = 0xFFF2E3C6.toInt()
         val box = JukeboxView(this).apply { setOnClickListener { retries = 1; startListening() } }
         status = TextView(this).apply {
@@ -200,7 +202,16 @@ class MainActivity : Activity() {
         heard.text = "“$text”"
         val cmd = Parser.parse(text)
         if (cmd == null) { status.text = "Didn’t understand"; return }
-        Router.run(this, cmd, defaultTarget, { status.text = it }) { main.postDelayed({ finish() }, 300) }
+        // Failures ("Couldn’t find …", "No playlist …") stay on screen long enough to read.
+        var failed = false
+        val info = { m: String -> status.text = m; if (m.startsWith("Couldn’t") || m.startsWith("No ")) failed = true }
+        try {
+            Router.run(this, cmd, defaultTarget, info) { main.postDelayed({ finish() }, if (failed) 3500 else 300) }
+        } catch (e: Exception) {
+            android.util.Log.e("VoicePlay", "command failed", e)
+            status.text = "Something went wrong: ${e.message ?: e.javaClass.simpleName}"
+            main.postDelayed({ finish() }, 3500)
+        }
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, results: IntArray) {

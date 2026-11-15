@@ -41,6 +41,33 @@ object AimpLibrary {
         return d[a.length][b.length]
     }
 
+    private var held: MediaBrowser? = null
+
+    /**
+     * Keeps our connection to AIMP open (AIMP can stop itself when its last client leaves) and, for the first
+     * few seconds, logs what AIMP does and presses play again if it gets paused by someone else's audio focus.
+     */
+    fun watch(app: Context, b: MediaBrowser?) {
+        b ?: return
+        val old = held; held = b
+        if (old != null && old !== b) runCatching { old.disconnect() }
+        val c = MediaController(app, b.sessionToken)
+        var retried = false
+        val cb = object : MediaController.Callback() {
+            override fun onPlaybackStateChanged(state: android.media.session.PlaybackState?) {
+                Log.i(TAG, "AIMP state=${state?.state}")
+            }
+        }
+        c.registerCallback(cb, main)
+        for (t in longArrayOf(2500, 5000)) main.postDelayed({
+            val st = c.playbackState?.state
+            if (!retried && st == android.media.session.PlaybackState.STATE_PAUSED) {
+                retried = true; Log.i(TAG, "AIMP got paused, pressing play again"); c.transportControls.play()
+            }
+        }, t)
+        main.postDelayed({ c.unregisterCallback(cb) }, 6000)
+    }
+
     /** [result] gets true if a playlist or artist matched and was started, false to let the caller fall back. */
     fun play(app: Context, rawQuery: String, info: (String) -> Unit, result: (Boolean) -> Unit) {
         // "play the chill playlist" / "play playlist chill" insist on a playlist.
@@ -52,7 +79,8 @@ object AimpLibrary {
         var finished = false
         fun finish(ok: Boolean) {
             if (finished) return; finished = true
-            main.postDelayed({ browser?.disconnect() }, 1500); result(ok)
+            if (ok) watch(app, browser) else main.postDelayed({ browser?.disconnect() }, 1500)
+            result(ok)
         }
         fun load(id: String, cb: (List<MediaBrowser.MediaItem>) -> Unit) {
             browser!!.subscribe(id, object : MediaBrowser.SubscriptionCallback() {
@@ -77,11 +105,15 @@ object AimpLibrary {
         }
         fun fromArtists() {
             load(ARTISTS) { artists ->
-                val artist = artists.firstOrNull { it.isBrowsable && matches(query, it.description.title.toString()) }
+                // "creep by radiohead": look for the artist, then a track of theirs whose title fits.
+                val by = Regex("^(.+?)[ ]+by[ ]+(.+)$").find(query.trim().lowercase())
+                val wantTitle = by?.groupValues?.get(1)
+                val artist = artists.firstOrNull { it.isBrowsable && matches(by?.groupValues?.get(2) ?: query, it.description.title.toString()) }
                 if (artist == null) { finish(false); return@load }
                 val tracks = mutableListOf<MediaBrowser.MediaItem>()
                 collect(artist.mediaId!!, 0, tracks) {
-                    val pick = tracks.randomOrNull()
+                    val pick = if (wantTitle != null) tracks.firstOrNull { matches(wantTitle, it.description.title.toString()) || norm(it.description.title.toString()).contains(norm(wantTitle)) }
+                        else tracks.randomOrNull()
                     Log.i(TAG, "AIMP artist=${artist.description.title} tracks=${tracks.size} pick=${pick?.description?.title}")
                     if (pick == null) { finish(false); return@collect }
                     controller().transportControls.playFromMediaId(pick.mediaId!!, null)

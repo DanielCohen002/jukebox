@@ -40,6 +40,10 @@ object Parser {
         onTarget.find(t)?.let { target = toTarget(it.groupValues[1]); t = t.removeRange(it.range).trim() }
         if (target == null) prefixTarget.find(t)?.let { target = toTarget(it.groupValues[1]); t = t.removeRange(it.range).trim() }
         if (t.isEmpty()) return null
+        // "play songs by radiohead" / "play by radiohead" / "play the song creep by radiohead": keep just the request.
+        t = t.replace(Regex("^(?:(?:some|any|a|the)[ ]+)?(?:(?:songs?|music|tracks?|stuff|something|anything)[ ]+)?by[ ]+"), "")
+            .replace(Regex("^(?:the[ ]+)?(?:song|track)[ ]+"), "").trim()
+        if (t.isEmpty()) return null
         return Command.Play(t, target)
     }
 
