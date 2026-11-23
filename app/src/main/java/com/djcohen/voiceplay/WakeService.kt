@@ -97,7 +97,7 @@ class WakeService : Service() {
     // ---------------------------------------------------------------- step 1: wake phrase
 
     private fun listenForWake() {
-        val m = model ?: run { status("Couldn’t load the wake-word model"); return }
+        val m = model ?: run { status(if (ModelStore.isReady(this)) "Couldn’t load the wake-word model" else "Open Jukebox and download the speech model"); return }
         val phrase = wakePhrase(this)
         triggered = false
         val rec = Recognizer(m, 16000f, "[\"$phrase\", \"[unk]\"]")

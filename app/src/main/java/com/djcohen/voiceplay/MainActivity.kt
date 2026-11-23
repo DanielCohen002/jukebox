@@ -152,6 +152,31 @@ class MainActivity : Activity() {
         alwaysBtn.background = pill(if (on) 0xFF3DB8A8.toInt() else 0x33F2E3C6, if (on) 0xFF3DB8A8.toInt() else 0xFFF2E3C6.toInt())
     }
 
+    /** Runs [then] once the speech model is on the phone: asks first, then downloads it if it is missing. */
+    private fun withModel(then: () -> Unit) {
+        if (ModelStore.isReady(this)) { then(); return }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Download speech model?")
+            .setMessage("Always listening needs an offline speech model (${ModelStore.SIZE_MB} MB). It downloads once from GitHub, so Wi-Fi is best, and then stays on this phone.")
+            .setPositiveButton("Download") { _, _ -> downloadModel(then) }
+            .setNegativeButton("Not now", null)
+            .show()
+    }
+
+    private fun downloadModel(then: () -> Unit) {
+        val msg = TextView(this).apply { text = "Downloading… 0%"; textSize = 16f; setPadding((24 * dp).toInt(), (16 * dp).toInt(), (24 * dp).toInt(), (8 * dp).toInt()) }
+        val dlg = android.app.AlertDialog.Builder(this).setTitle("Speech model").setView(msg).setCancelable(false).show()
+        Thread {
+            val r = runCatching { ModelStore.download(this) { p -> runOnUiThread { msg.text = "Downloading… $p%" } } }
+            runOnUiThread {
+                dlg.dismiss()
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                r.onSuccess { then() }
+                    .onFailure { android.widget.Toast.makeText(this, "Download failed: ${it.message}", android.widget.Toast.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
+
     private fun toggleAlways() {
         if (WakeService.running) {
             startService(Intent(this, WakeService::class.java).setAction(WakeService.ACTION_STOP))
@@ -160,8 +185,10 @@ class MainActivity : Activity() {
             val need = listOf(Manifest.permission.RECORD_AUDIO)
                 .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
             if (need.isNotEmpty()) { requestPermissions(need.toTypedArray(), 2); return }
-            startForegroundService(Intent(this, WakeService::class.java))
-            main.postDelayed({ renderAlways() }, 600)
+            withModel {
+                startForegroundService(Intent(this, WakeService::class.java))
+                main.postDelayed({ renderAlways() }, 600)
+            }
         }
     }
 
