@@ -19,7 +19,6 @@ import androidx.media3.session.SessionToken
 /** Sends a parsed [Command] to AIMP or Metrolist using the same hooks Google Assistant uses for media apps. */
 object Router {
     private const val TAG = "VoicePlay"
-    private const val METROLIST_PKG = "com.metrolist.music"
     private const val METROLIST_SERVICE = "com.metrolist.music.playback.MusicService"   // old name; looked up at runtime now
     private const val AIMP_PKG = "com.aimp.player"
     private const val AIMP_SERVICE = "com.aimp.player.service.AppService"
@@ -28,15 +27,17 @@ object Router {
     private val onMain = java.util.concurrent.Executor { main.post(it) }
 
     /** [info] reports what is happening; [done] runs once it is safe to close the screen. */
-    fun run(ctx: Context, cmd: Command, defaultTarget: Target, info: (String) -> Unit, done: () -> Unit) {
+    fun run(ctx: Context, cmd: Command, defaultTarget: Target?, info: (String) -> Unit, done: () -> Unit) {
         when (cmd) {
             is Command.Key -> { sendKey(ctx, cmd.code); info(cmd.label); done() }
             is Command.Play -> {
                 val target = cmd.target ?: defaultTarget
+                if (target == null) { info("No music app installed"); done(); return }
+                if (!target.isInstalled(ctx)) { info("Couldn’t find ${target.label} (is it installed?)"); done(); return }
                 info("Playing “${cmd.query}” on ${target.label}…")
                 when (target) {
                     Target.AIMP -> playInAimp(ctx.applicationContext, cmd.query, info, done)
-                    Target.METROLIST -> playInMetrolist(ctx.applicationContext, cmd.query, info, done)
+                    Target.METROLIST, Target.YMUSIC -> playInMediaLibrary(ctx.applicationContext, target, cmd.query, info, done)
                 }
             }
         }
@@ -105,22 +106,23 @@ object Router {
     }
 
     /**
-     * Metrolist: ask its media service for search results (library + YouTube Music), pick the best one ourselves
-     * (title and artist), and play it. If the search comes back empty, fall back to Metrolist's own voice matching.
+     * Metrolist and YMusic both expose a standard media3 library service: ask it for search results, pick the best one
+     * ourselves (title and artist), and play it. If the search comes back empty, fall back to the app's own voice matching.
      */
-    private fun playInMetrolist(app: Context, query: String, info: (String) -> Unit, done: () -> Unit) {
-        // Metrolist has renamed its service between versions, so ask the system which one it has now.
+    private fun playInMediaLibrary(app: Context, target: Target, query: String, info: (String) -> Unit, done: () -> Unit) {
+        val name = target.label
+        // These apps have renamed their service between versions, so ask the system which one they have now.
         val component = app.packageManager.queryIntentServices(
-            Intent("androidx.media3.session.MediaLibraryService").setPackage(METROLIST_PKG), 0
+            Intent("androidx.media3.session.MediaLibraryService").setPackage(target.pkg), 0
         ).firstOrNull()?.serviceInfo?.let { ComponentName(it.packageName, it.name) }
-        if (component == null) { info("Couldn’t find Metrolist (is it installed?)"); done(); return }
+        if (component == null) { info("Couldn’t find $name (is it installed?)"); done(); return }
         val token = runCatching { SessionToken(app, component) }.onFailure { Log.e(TAG, "Metrolist token", it) }.getOrNull()
-        if (token == null) { info("Couldn’t reach Metrolist"); done(); return }
+        if (token == null) { info("Couldn’t reach $name"); done(); return }
         val future = MediaBrowser.Builder(app, token).buildAsync()
         fun finish(b: MediaBrowser) { main.postDelayed({ b.release(); done() }, 3000) }
         future.addListener({
             val browser = runCatching { future.get() }.onFailure { Log.e(TAG, "browser connect failed", it) }.getOrNull()
-            if (browser == null) { info("Couldn’t reach Metrolist"); done(); return@addListener }
+            if (browser == null) { info("Couldn’t reach $name"); done(); return@addListener }
             val search = browser.search(query, null)
             search.addListener({
                 val result = browser.getSearchResult(query, 0, 40, null)
@@ -133,7 +135,7 @@ object Router {
                     Log.i(TAG, "query=\"$query\" results=${items.size} top=" +
                         ranked.take(3).joinToString { "${it.item.mediaMetadata.title} - ${it.item.mediaMetadata.artist} (${"%.2f".format(it.score)})" })
                     if (best == null || best.score < 0.5) {
-                        // Nothing convincing: let Metrolist try its own voice matching.
+                        // Nothing convincing: let the app try its own voice matching.
                         playByVoiceQuery(browser, query); info("Playing “$query”"); finish(browser)
                     } else {
                         // An artist-only request queues several of that artist's songs; otherwise just the best match.

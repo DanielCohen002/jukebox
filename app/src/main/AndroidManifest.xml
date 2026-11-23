@@ -12,6 +12,7 @@
     <queries>
         <package android:name="com.metrolist.music" />
         <package android:name="com.aimp.player" />
+        <package android:name="io.ymusic.android" />
         <intent><action android:name="android.speech.RecognitionService" /></intent>
     </queries>
 

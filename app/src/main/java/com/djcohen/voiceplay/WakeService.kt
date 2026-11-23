@@ -38,8 +38,7 @@ class WakeService : Service() {
         @Volatile var running = false
 
         fun wakePhrase(ctx: Context) = ctx.getSharedPreferences("voiceplay", MODE_PRIVATE).getString("wake", "hey jukebox")!!.lowercase().trim()
-        fun defaultTarget(ctx: Context) =
-            Target.valueOf(ctx.getSharedPreferences("voiceplay", MODE_PRIVATE).getString("default", Target.METROLIST.name)!!)
+        fun defaultTarget(ctx: Context) = Target.default(ctx)
     }
 
     private val main = Handler(Looper.getMainLooper())

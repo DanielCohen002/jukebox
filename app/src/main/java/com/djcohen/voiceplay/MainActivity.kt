@@ -33,9 +33,10 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("voiceplay", MODE_PRIVATE) }
     private val dp by lazy { resources.displayMetrics.density }
 
-    private var defaultTarget: Target
-        get() = Target.valueOf(prefs.getString("default", Target.METROLIST.name)!!)
-        set(v) { prefs.edit().putString("default", v.name).apply(); renderDefault() }
+    /** The chosen player, or the first installed one if it was uninstalled; null when no supported app is installed. */
+    private var defaultTarget: Target?
+        get() = Target.default(this)
+        set(v) { if (v != null) prefs.edit().putString("default", v.name).apply(); renderDefault() }
 
     private fun pill(fill: Int, stroke: Int) = GradientDrawable().apply { setColor(fill); setStroke((2 * dp).toInt(), stroke); cornerRadius = 100 * dp }
 
@@ -66,7 +67,10 @@ class MainActivity : Activity() {
             textSize = 14f; setTextColor(cream); gravity = Gravity.CENTER
             setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
             background = pill(0x33F2E3C6, cream)
-            setOnClickListener { defaultTarget = if (defaultTarget == Target.METROLIST) Target.AIMP else Target.METROLIST }
+            setOnClickListener {
+                val have = Target.installed(this@MainActivity)
+                if (have.isNotEmpty()) defaultTarget = have[(have.indexOf(defaultTarget) + 1) % have.size]
+            }
         }
         alwaysBtn = TextView(this).apply {
             textSize = 14f; gravity = Gravity.CENTER
@@ -192,7 +196,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun renderDefault() { defaultBtn.text = "Player: ${defaultTarget.label}" }
+    private fun renderDefault() { defaultBtn.text = defaultTarget?.let { "Player: ${it.label}" } ?: "No music app installed" }
 
     private fun startListening() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
