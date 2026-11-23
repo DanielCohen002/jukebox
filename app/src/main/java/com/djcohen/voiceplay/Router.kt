@@ -1,6 +1,8 @@
 package com.djcohen.voiceplay
 
+import android.app.NotificationManager
 import android.app.SearchManager
+import android.provider.Settings
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -34,6 +36,17 @@ object Router {
                 val target = cmd.target ?: defaultTarget
                 if (target == null) { info("No music app installed"); done(); return }
                 if (!target.isInstalled(ctx)) { info("Couldn’t find ${target.label} (is it installed?)"); done(); return }
+                if (target != Target.AIMP && !hasTrust(ctx)) {
+                    // Metrolist 14+ ignores searches from apps without notification access ("trusted for media control").
+                    info("No notification access: turn on Jukebox")
+                    runCatching {
+                        ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                            .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                                ComponentName(ctx, TrustListener::class.java).flattenToString())
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }.onFailure { Log.w(TAG, "couldn't open notification access settings", it) }
+                    done(); return
+                }
                 info("Playing “${cmd.query}” on ${target.label}…")
                 when (target) {
                     Target.AIMP -> playInAimp(ctx.applicationContext, cmd.query, info, done)
@@ -42,6 +55,9 @@ object Router {
             }
         }
     }
+
+    private fun hasTrust(ctx: Context): Boolean =
+        ctx.getSystemService(NotificationManager::class.java).isNotificationListenerAccessGranted(ComponentName(ctx, TrustListener::class.java))
 
     private fun sendKey(ctx: Context, code: Int) {
         val am = ctx.getSystemService(AudioManager::class.java)

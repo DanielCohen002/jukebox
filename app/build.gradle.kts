@@ -21,8 +21,8 @@ android {
         applicationId = "com.djcohen.voiceplay"
         minSdk = 30
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.3.0"
+        versionCode = 9
+        versionName = "1.3.1"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
