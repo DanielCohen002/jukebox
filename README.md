@@ -2,11 +2,11 @@
 
 <h1 align="center">Jukebox</h1>
 
-Android app that lets voice commands start music in Metrolist and AIMP, since Gemini won't.
+Android app that lets voice commands start music in Metrolist, YMusic and AIMP, since Gemini won't.
 
-- Say "Hey Google, open Jukebox", then e.g. "play Radiohead on Metrolist", "play jazz on AIMP", "pause", "next".
+- Say "Hey Google, open Jukebox", then e.g. "play Radiohead on Metrolist", "play jazz on AIMP", "play Creep on YMusic", "pause", "next".
 - Optional always-on mode: an offline Vosk wake phrase (default "hey jukebox") listens in a foreground service, then Google SpeechRecognizer takes the command.
-- Metrolist is driven through its media3 MediaBrowser/MediaController; AIMP through its MediaBrowserService, with a play-from-search intent fallback.
+- Metrolist and YMusic are driven through its media3 MediaBrowser/MediaController; AIMP through its MediaBrowserService, with a play-from-search intent fallback. Only the apps that are installed are offered.
 
 ## Build
 
