@@ -72,7 +72,8 @@ class WakeService : Service() {
         running = false
         generation++
         main.removeCallbacksAndMessages(null)
-        speech?.shutdown(); speech = null
+        // Vosk: stop() joins its reading thread; releasing the mic first makes that thread throw "error reading audio buffer" and crash the app.
+        speech?.let { runCatching { it.stop() }; runCatching { it.shutdown() } }; speech = null
         recognizer?.destroy(); recognizer = null
         model?.close()
         wakeLock?.let { if (it.isHeld) it.release() }
