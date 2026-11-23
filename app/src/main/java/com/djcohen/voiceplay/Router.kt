@@ -14,8 +14,10 @@ import android.provider.MediaStore
 import android.util.Log
 import android.view.KeyEvent
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 
 /** Sends a parsed [Command] to AIMP or Metrolist using the same hooks Google Assistant uses for media apps. */
@@ -154,11 +156,40 @@ object Router {
                         // Nothing convincing: let the app try its own voice matching.
                         playByVoiceQuery(browser, query); info("Playing “$query”"); finish(browser)
                     } else {
-                        // An artist-only request queues several of that artist's songs; otherwise just the best match.
-                        val queue = if (best.artistOnly) ranked.filter { it.artistOnly && it.score >= 0.5 }.take(10).map { it.item } else listOf(best.item)
+                        val radio = target == Target.METROLIST
+                        // Metrolist: play the chosen song (or, for "play <artist>", three of that artist's songs), then let its own
+                        // "Start radio" build the queue of similar songs. Other apps have no such command, so an artist request queues ten.
+                        val artistSongs = if (best.artistOnly) ranked.filter { it.artistOnly && it.score >= 0.5 }.map { it.item } else emptyList()
+                        val queue = when {
+                            !best.artistOnly -> listOf(best.item)
+                            radio -> artistSongs.take(3)
+                            else -> artistSongs.take(10)
+                        }
                         browser.setMediaItems(queue)
                         browser.prepare(); browser.play()
                         info("Playing ${best.item.mediaMetadata.title} — ${best.item.mediaMetadata.artist}")
+                        if (radio && queue.size > 1) {
+                            // Radio rebuilds the queue from the current song, so wait until the last of the three starts.
+                            var sent = false
+                            fun startRadio() {
+                                if (sent) return; sent = true
+                                runCatching { browser.sendCustomCommand(SessionCommand("TOGGLE_START_RADIO", Bundle.EMPTY), Bundle.EMPTY) }
+                                    .onFailure { Log.w(TAG, "start radio failed", it) }
+                                main.postDelayed({ browser.release() }, 3000)
+                            }
+                            browser.addListener(object : Player.Listener {
+                                override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
+                                    if (browser.currentMediaItemIndex >= queue.size - 1) startRadio()
+                                }
+                            })
+                            main.postDelayed({ if (!sent) { sent = true; browser.release() } }, 30 * 60_000L)   // give up if never reached
+                            main.postDelayed({ done() }, 3000)
+                            return@addListener
+                        }
+                        if (radio) main.postDelayed({
+                            runCatching { browser.sendCustomCommand(SessionCommand("TOGGLE_START_RADIO", Bundle.EMPTY), Bundle.EMPTY) }
+                                .onFailure { Log.w(TAG, "start radio failed", it) }
+                        }, 1500)
                         finish(browser)
                     }
                 }, onMain)
