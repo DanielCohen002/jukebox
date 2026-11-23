@@ -96,7 +96,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams(-1, -2).apply { topMargin = (10 * dp).toInt() })
             addView(wakeField, LinearLayout.LayoutParams((220 * dp).toInt(), -2))
             addView(TextView(context).apply {
-                text = "Jukebox ${Updater.currentVersion(this@MainActivity)} · Check for updates"
+                text = "Jukebox ${Updater.currentVersion(this@MainActivity)} · GPL-3.0 · Check for updates"
                 textSize = 12f; setTextColor(cream); gravity = Gravity.CENTER
                 setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
                 setOnClickListener { Updater.check(this@MainActivity) }

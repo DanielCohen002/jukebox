@@ -21,3 +21,7 @@ The Vosk model is not committed (about 60 MB). Download a small English model fr
 ```
 adb shell "am start -n com.djcohen.voiceplay/.MainActivity --es text 'play creep by radiohead on metrolist'"
 ```
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE). Free software: you can use, change and share it, and anything you share based on it must stay GPL-3.0 with its source available.
